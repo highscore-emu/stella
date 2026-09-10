@@ -23,6 +23,8 @@
 #ifndef CORTEX_M0_HXX
 #define CORTEX_M0_HXX
 
+// NOLINTBEGIN(bugprone-signed-bitwise)
+
 #include <variant>
 
 #include "Serializable.hxx"
@@ -226,10 +228,10 @@ class CortexM0: public Serializable
     uInt64 myCycleCounter{0};
 
     static constexpr uInt32
-      CPSR_N = 1U << 31,
-      CPSR_Z = 1U << 30,
-      CPSR_C = 1U << 29,
-      CPSR_V = 1U << 28;
+      CPSR_N = 1U << 31U,
+      CPSR_Z = 1U << 30U,
+      CPSR_C = 1U << 29U,
+      CPSR_V = 1U << 28U;
 
   private:
     // Following constructors and assignment operators not supported
@@ -238,5 +240,7 @@ class CortexM0: public Serializable
     CortexM0& operator=(const CortexM0&) = delete;
     CortexM0& operator=(CortexM0&&) = delete;
 };
+
+// NOLINTEND(bugprone-signed-bitwise)
 
 #endif  // CORTEX_M0_HXX

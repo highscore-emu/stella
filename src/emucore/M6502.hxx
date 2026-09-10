@@ -298,7 +298,7 @@ class M6502 : public Serializable
 
     // Returns non-zero if the two addresses are on different pages
     static constexpr uInt16 NOTSAMEPAGE(uInt16 a, uInt16 b) noexcept {
-      return (a ^ b) & 0xff00;
+      return static_cast<uInt32>(a ^ b) & 0xff00U;
     }
 
     /**
@@ -309,13 +309,13 @@ class M6502 : public Serializable
     uInt8 PS() const {
       return static_cast<uInt8>(
         0x20U
-        | (static_cast<uInt8>(N)     << 7)
-        | (static_cast<uInt8>(V)     << 6)
-        | (static_cast<uInt8>(B)     << 4)
-        | (static_cast<uInt8>(D)     << 3)
-        | (static_cast<uInt8>(I)     << 2)
-        | (static_cast<uInt8>(!notZ) << 1)
-        | static_cast<uInt8>(C)
+        | (static_cast<uInt32>(N)     << 7U)
+        | (static_cast<uInt32>(V)     << 6U)
+        | (static_cast<uInt32>(B)     << 4U)
+        | (static_cast<uInt32>(D)     << 3U)
+        | (static_cast<uInt32>(I)     << 2U)
+        | (static_cast<uInt32>(!notZ) << 1U)
+        | static_cast<uInt32>(C)
       );
     }
 
@@ -325,13 +325,13 @@ class M6502 : public Serializable
       @param ps The value to set the processor status register to
     */
     void PS(uInt8 ps) {
-      N = ps & 0x80;
-      V = ps & 0x40;
+      N = ps & 0x80U;
+      V = ps & 0x40U;
       B = true;        // B = ps & 0x10;  The 6507's B flag always true
-      D = ps & 0x08;
-      I = ps & 0x04;
-      notZ = !(ps & 0x02);
-      C = ps & 0x01;
+      D = ps & 0x08U;
+      I = ps & 0x04U;
+      notZ = !(ps & 0x02U);
+      C = ps & 0x01U;
     }
 
     /**
