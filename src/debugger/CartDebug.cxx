@@ -204,7 +204,8 @@ string CartDebug::toString()
     {
       out += DebuggerParser::red(std::format(
         "{}xx: (rport = {}, wport = {})\n",
-        Base::hex2(state.rport[i] >> 8U), Base::hex4(state.rport[i]), Base::hex4(state.wport[i])
+        Base::hex2(state.rport[i] >> 8U), Base::hex4(state.rport[i]),
+                   Base::hex4(state.wport[i])
       ));
       bytesSoFar = 0;
     }
@@ -231,7 +232,7 @@ bool CartDebug::disassembleAddr(uInt16 address, bool force)
   const int segCount = cart.segmentCount();
   // ROM/RAM bank or ZP-RAM?
   const int addrBank = (address & 0x1000U)
-    ? getBank(address) : static_cast<int>(myBankInfo.size()) - 1;
+    ? getBank(address) : I32(myBankInfo.size()) - 1;
 
   if(segCount > 1)
   {
@@ -261,7 +262,7 @@ bool CartDebug::disassembleAddr(uInt16 address, bool force)
         tag.address = 0;
         tag.disasm = " ";
         disassembly.list.push_back(tag);
-        addrToLineList.emplace(0, static_cast<uInt32>(disassembly.list.size() +
+        addrToLineList.emplace(0, U32(disassembly.list.size() +
                                myDisassembly.list.size()) - 1);
       }
       // Aggregate segment disassemblies
@@ -298,7 +299,7 @@ bool CartDebug::disassemble(int bank, uInt16 PC, Disassembly& disassembly,
   // Also check if the current PC is in the current list
   const bool bankChanged = myConsole.cartridge().bankChanged();
   const int pcline = addressToLine(PC);
-  const bool pcfound = (pcline != -1) && (static_cast<uInt32>(pcline) < disassembly.list.size()) &&
+  const bool pcfound = (pcline != -1) && (U32(pcline) < disassembly.list.size()) &&
                        (disassembly.list[pcline].disasm[0] != '.');
   const bool pagedirty = (PC & 0x1000U) ? mySystem.isPageDirty(0x1000, 0x1FFF) :
                                           mySystem.isPageDirty(0x80, 0xFF);
@@ -315,7 +316,7 @@ bool CartDebug::disassemble(int bank, uInt16 PC, Disassembly& disassembly,
     // For example, if the list contains any $fxxx and the address space is now
     // $bxxx, it must be changed
     const uInt16 bankSz = myConsole.cartridge().bankSize(bank);
-    const auto addrMask = static_cast<uInt16>(bankSz - 1);
+    const auto addrMask = U16(bankSz - 1);
     const uInt16 offset = (PC & 0x1000U)
       ? myConsole.cartridge().bankOrigin(bank, PC)
       : 0;
@@ -359,7 +360,7 @@ bool CartDebug::fillDisassemblyList(BankInfo& info, Disassembly& disassembly,
 
   disassembly.fieldwidth = 24 + myLabelLength;
   // line offset must be set before calling DiStella!
-  const auto lineOfs = static_cast<uInt32>(myDisassembly.list.size());
+  const auto lineOfs = U32(myDisassembly.list.size());
   const DiStella distella(*this, disassembly.list, info, DiStella::settings,
                           myDisLabels, myDisDirectives, myReserved);
 
@@ -447,7 +448,7 @@ bool CartDebug::addDirective(Device::AccessType type,
   if(bank < 0)  // Do we want the current bank or ZP RAM?
     bank = (U32(myDebugger.cpuDebug().pc()) & 0x1000U)
       ? getBank(myDebugger.cpuDebug().pc())
-      : static_cast<int>(myBankInfo.size())-1;
+      : I32(myBankInfo.size())-1;
 
   bank = std::min(bank, romBankCount());
   BankInfo& info = myBankInfo[bank];
@@ -601,7 +602,7 @@ bool CartDebug::addLabel(const string& label, uInt16 address)
       string newLabel = uniqueLabel(label);
       myUserAddresses.emplace(newLabel, address);
       myUserLabels.emplace(address, newLabel);
-      myLabelLength = std::max(myLabelLength, static_cast<uInt16>(newLabel.size()));
+      myLabelLength = std::max(myLabelLength, U16(newLabel.size()));
       mySystem.setDirtyPage(address);
       return true;
   }
@@ -1064,7 +1065,6 @@ string CartDebug::saveDisassembly(string path)
   return CartDisassemblyWriter(*this).save(std::move(path));
 }
 
-
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 string CartDebug::saveRom(string path)
 {
@@ -1115,7 +1115,7 @@ string CartDebug::saveAccessFile(string path)
 string CartDebug::listConfig(int bank)
 {
   const bool singleBank  = (bank >= 0 && bank < romBankCount());
-  const uInt32 startbank = singleBank ? static_cast<uInt32>(bank) : 0;
+  const uInt32 startbank = singleBank ? U32(bank) : 0;
   const uInt32 endbank   = singleBank ? startbank + 1 : romBankCount();
 
   string out;
@@ -1265,51 +1265,48 @@ string CartDebug::accessTypeAsString(uInt16 addr) const
   if(!(addr & 0x1000U))
     return DebuggerParser::red("type only defined for cart address space");
 
-  const uInt8 directive = myDisDirectives[addr & mySystem.addressMask()] & 0xFCU,
-              debugger  = myDebugger.getAccessFlags(addr) & 0xFCU,
-              label     = myDisLabels[addr & mySystem.addressMask()];
+  // The "value type" flags: what a directive/access can be, excluding the
+  // REFERENCED/VALID_ENTRY bookkeeping bits and the code/graphics bits.
+  constexpr Device::AccessType valueTypeMask =
+    Device::ROW | Device::DATA | Device::AUD | Device::BCOL | Device::PCOL | Device::COL;
+
+  const Device::AccessType directive = myDisDirectives[addr & mySystem.addressMask()] & valueTypeMask,
+                            debugger  = myDebugger.getAccessFlags(addr) & valueTypeMask,
+                            label     = myDisLabels[addr & mySystem.addressMask()];
 
   string out;
   out.reserve(128);
   out += "\ndirective: ";
-  out += Base::toString(directive, Base::Fmt::_2_8);
+  out += Base::toString(Bitmask::to_underlying(directive), Base::Fmt::_2_8);
   out += ' ';
-  out += AccessTypeAsString(directive);
+  out += AccessFlagsAsString(directive);
   out += "\nemulation: ";
-  out += Base::toString(debugger, Base::Fmt::_2_8);
+  out += Base::toString(Bitmask::to_underlying(debugger), Base::Fmt::_2_8);
   out += ' ';
-  out += AccessTypeAsString(debugger);
+  out += AccessFlagsAsString(debugger);
   out += "\ntentative: ";
-  out += Base::toString(label, Base::Fmt::_2_8);
+  out += Base::toString(Bitmask::to_underlying(label), Base::Fmt::_2_8);
   out += ' ';
-  out += AccessTypeAsString(label);
+  out += AccessFlagsAsString(label);
   out += '\n';
   return out;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Device::AccessType CartDebug::accessTypeAbsolute(Device::AccessFlags flags)
+Device::AccessType CartDebug::accessTypeAbsolute(Device::AccessType flags)
 {
-  if(flags & Device::CODE || flags & Device::TCODE) // TODO: TCODE separate?
-    return Device::CODE;
-  else if(flags & Device::GFX)
-    return Device::GFX;
-  else if(flags & Device::PGFX)
-    return Device::PGFX;
-  else if(flags & Device::COL)
-    return Device::COL;
-  else if(flags & Device::PCOL)
-    return Device::PCOL;
-  else if(flags & Device::BCOL)
-    return Device::BCOL;
-  else if(flags & Device::AUD)
-    return Device::AUD;
-  else if(flags & Device::DATA)
-    return Device::DATA;
-  else if(flags & Device::ROW)
-    return Device::ROW;
-  else
-    return Device::NONE;
+  const Bitmask::Enum bits{flags};
+
+  if(bits.any_of(Device::CODE | Device::TCODE)) return Device::CODE; // TODO: TCODE separate?
+  else if(bits.any_of(Device::GFX))             return Device::GFX;
+  else if(bits.any_of(Device::PGFX))            return Device::PGFX;
+  else if(bits.any_of(Device::COL))             return Device::COL;
+  else if(bits.any_of(Device::PCOL))            return Device::PCOL;
+  else if(bits.any_of(Device::BCOL))            return Device::BCOL;
+  else if(bits.any_of(Device::AUD))             return Device::AUD;
+  else if(bits.any_of(Device::DATA))            return Device::DATA;
+  else if(bits.any_of(Device::ROW))             return Device::ROW;
+  else                                          return Device::NONE;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1332,26 +1329,27 @@ string_view CartDebug::AccessTypeAsString(Device::AccessType type)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-string CartDebug::AccessTypeAsString(Device::AccessFlags flags)
+string CartDebug::AccessFlagsAsString(Device::AccessType flags)
 {
-  if(!flags)
+  const Bitmask::Enum bits{flags};
+  if(bits.empty())
     return "no flags set";
 
   string out;
   out.reserve(64);
 
-  if(flags & Device::CODE)        out += "CODE ";
-  if(flags & Device::TCODE)       out += "TCODE ";
-  if(flags & Device::GFX)         out += "GFX ";
-  if(flags & Device::PGFX)        out += "PGFX ";
-  if(flags & Device::COL)         out += "COL ";
-  if(flags & Device::PCOL)        out += "PCOL ";
-  if(flags & Device::BCOL)        out += "BCOL ";
-  if(flags & Device::AUD)         out += "AUD ";
-  if(flags & Device::DATA)        out += "DATA ";
-  if(flags & Device::ROW)         out += "ROW ";
-  if(flags & Device::REFERENCED)  out += "*REFERENCED ";
-  if(flags & Device::VALID_ENTRY) out += "*VALID_ENTRY ";
+  if(bits.any_of(Device::CODE))        out += "CODE ";
+  if(bits.any_of(Device::TCODE))       out += "TCODE ";
+  if(bits.any_of(Device::GFX))         out += "GFX ";
+  if(bits.any_of(Device::PGFX))        out += "PGFX ";
+  if(bits.any_of(Device::COL))         out += "COL ";
+  if(bits.any_of(Device::PCOL))        out += "PCOL ";
+  if(bits.any_of(Device::BCOL))        out += "BCOL ";
+  if(bits.any_of(Device::AUD))         out += "AUD ";
+  if(bits.any_of(Device::DATA))        out += "DATA ";
+  if(bits.any_of(Device::ROW))         out += "ROW ";
+  if(bits.any_of(Device::REFERENCED))  out += "*REFERENCED ";
+  if(bits.any_of(Device::VALID_ENTRY)) out += "*VALID_ENTRY ";
 
   return out;
 }
