@@ -264,11 +264,10 @@ void* StellaHIGHSCORE::getVideoBuffer() const
 {
   if (!render_surface)
   {
-    const FBSurface& surface =
-        myOSystem->frameBuffer().tiaSurface().tiaSurface();
+    FBSurface& surface =
+        myOSystem->frameBuffer().tiaSurface().surface();
 
-    uInt32 pitch = 0;
-    surface.basePtr(render_surface, pitch);
+    render_surface = surface.basePtr().pixels;
   }
 
   return render_surface;

@@ -100,7 +100,8 @@ class StellaHIGHSCORE
     }
 
     const Common::Rect& getImageRect() const {
-      return myOSystem->frameBuffer().imageRect();
+      FrameBuffer& fb = myOSystem->frameBuffer();
+      return fb.imageRect(fb.primaryWindow());
     }
 
     float  getAudioRate() const {
