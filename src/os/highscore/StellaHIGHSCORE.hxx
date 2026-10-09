@@ -104,6 +104,14 @@ class StellaHIGHSCORE
       return myOSystem->frameBuffer().imageRect();
     }
 
+    bool colorLossActive() const {
+      return myOSystem->console().tia().colorLossActive();
+    }
+
+    int scanlines() const {
+      return myOSystem->console().tia().scanlinesLastFrame();
+    }
+
     float  getAudioRate() const {
       return getConsoleNTSC() ? (262 * 76 * 60) / 38.0 : (312 * 76 * 50) / 38.0;
     }
