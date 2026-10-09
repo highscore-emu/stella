@@ -18,6 +18,8 @@ struct _StellaCore
   char *save_path;
 
   double paddle_values[4];
+
+  float colorburst_phase;
 };
 
 static void stella_atari_2600_core_init (HsAtari2600CoreInterface *iface);
@@ -177,7 +179,12 @@ stella_core_run_frame (HsCore *core)
     hs_software_context_set_area (self->context, &area);
   }
 
-  hs_software_context_set_colorburst (self->context, 1, 0, 0);
+  self->colorburst_phase = fmodf (self->colorburst_phase + self->stella->scanlines(), 2.0);
+
+  if (self->stella->colorLossActive ())
+    hs_software_context_set_colorburst (self->context, -1, 0, self->colorburst_phase);
+  else
+    hs_software_context_set_colorburst (self->context, 1, 0, self->colorburst_phase);
 
   if(self->stella->getVideoReady ()) {
     memcpy (hs_software_context_acquire_framebuffer (self->context),
@@ -196,10 +203,12 @@ stella_core_reset (HsCore *core, gboolean hard, GError **error)
 {
   StellaCore *self = STELLA_CORE (core);
 
-  if (hard)
+  if (hard) {
     self->stella->reset ();
-  else
+    self->colorburst_phase = 0;
+  } else {
     self->stella->setInputEvent (Event::ConsoleReset, TRUE);
+  }
 
   return TRUE;
 }
@@ -252,6 +261,8 @@ stella_core_load_state (HsCore          *core,
     callback (core, &error);
     return;
   }
+
+  self->colorburst_phase = hs_core_get_colorburst_offset (core);
 
   callback (core, NULL);
 }
